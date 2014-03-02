@@ -2,27 +2,37 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/InstVisitor.h"
 using namespace llvm;
 
 namespace {
+
+    struct CustomInstVisitor : public InstVisitor<CustomInstVisitor> {
+        CustomInstVisitor() : InstVisitor() {}
+        
+        void visitStoreInst(StoreInst &i) {
+            errs() << "Store Inst Found: " << i.getName() << '\n';
+        }
+
+        void visitAllocaInst(AllocaInst &i) {
+            errs() << "Allocate Inst Found: " << i.getName() << '\n';
+        }
+
+        void visitInstruction(Instruction &i) {
+            errs() << "Analyzing Instruction: " << i.getName() << '\n';
+        }
+    };
     
     struct NaivePass : public FunctionPass {
         static char ID;
         NaivePass() : FunctionPass(ID) {}
         
         virtual bool runOnFunction(Function &F) {
-            Function::iterator it = F.begin();
-            for (; it != F.end(); ++it) { //Skips the entry block
-                BasicBlock::iterator instruction = it->begin();
-                for (; instruction != it->end(); instruction++) {
-                    if (isa<PHINode>(instruction)) {
-                        continue;
-                    }
-                    errs() << "Instruction found: " << instruction->getOpcodeName() << '\n';
-                } 
-            } 
+            CustomInstVisitor visitor;
+            visitor.visit(F); 
             return false;
         }
+        
     };
     
     char NaivePass::ID = 0;
