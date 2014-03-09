@@ -4,6 +4,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Analysis/CFG.h"
+#include "llvm/IR/DebugInfo.h"
 #include <set>
 #include <list>
 using namespace llvm;
@@ -27,7 +28,12 @@ namespace {
                     }
                     if (LoadInst *inst = dyn_cast<LoadInst>(bbit)) {
                         if (defined.find(dyn_cast<Value>(inst)) == defined.end()) {
-                            errs() << "Uninitialized variable found " << inst->getPointerOperand()->getName() << '\n';
+                            if (MDNode *md = bbit->getMetadata("dbg")) {
+                                DILocation loc(md);
+                                unsigned line = loc.getLineNumber();
+                                errs() << "On line " << line << '\n';
+                            }
+                            errs() << "\tUninitialized variable found " << inst->getPointerOperand()->getName() << '\n';
                         }
                     }
                 }
