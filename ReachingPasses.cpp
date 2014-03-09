@@ -62,6 +62,13 @@ namespace {
             }
     };
 
+    void printSet(std::set<StoreInst*> out) {
+        for (std::set<StoreInst *>::iterator it = out.begin(); it != out.end(); it++) {
+            StoreInst *inst = *it;
+            errs() << '\t' << inst << '\n';
+        }
+    }
+
     struct NaivePass : public FunctionPass {
         static char ID;
         NaivePass() : FunctionPass(ID) {}
@@ -89,6 +96,8 @@ namespace {
                     //First get out the in and out for this basic block.
                     for (std::list<BBInAndOut>::iterator it = output.begin(); it != output.end(); it++) {
                         if (it->bb == sets.bb) {
+                            std::set<StoreInst *> new_in;
+                            std::set<StoreInst *> new_out;
                             //Go through predecessors and get new In
                             for (pred_iterator pi = pred_begin(sets.bb); pi != pred_end(sets.bb); pi++) {
                                 BasicBlock *pred = *pi;
@@ -98,7 +107,7 @@ namespace {
                                     
                                     if (pred_out.bb == pred) {
                                         for (StoreInst* inst  : pred_out.out) {
-                                            it->in.insert(inst);
+                                            new_in.insert(inst);
                                         }
                                     }
                                 }
@@ -106,21 +115,27 @@ namespace {
 
                             //Now get new Out from gen set union (IN - Kill)
                             for (StoreInst *inst : sets.gen) {
-                                it->out.insert(inst);
+                                new_out.insert(inst);
                             }
-                            for (StoreInst *inst : it->in) {
+                            for (StoreInst *inst : new_in) {
                                 if (sets.kill.find(inst) == sets.kill.end()) {
-                                    it->out.insert(inst);
+                                    new_out.insert(inst);
                                 }
                             }
                             
-                            //Now Check for Changes TODO
-                            it->inString();
-                            it->outString();
-                            errs() << '\n';
+                            //Now Check for Changes
+                            if (new_out != it->out) {
+                                change = true;
+                                swap(it->in, new_in);
+                                swap(it->out, new_out);
+                            }
                         }
                     }
                 }
+            }
+            for (BBInAndOut out : output) {
+                out.inString();
+                out.outString();
             }
             return false;
         }
