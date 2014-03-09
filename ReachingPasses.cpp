@@ -23,13 +23,19 @@ namespace {
             std::set<StoreInst *> kill;
             BBGenAndKillSets(BasicBlock *val) { bb = val; }
             //Sanity Check function, used to ensure my output made sense with personal test case.
-            std::string genString() {
-                std::string ret = "Gen Set of BB:" + bb->getName().str() + '\n';
+            void genString() {
+                errs() << "Gen Set of BB:" + bb->getName().str() + '\n';
                 for (std::set<StoreInst *>::iterator it = gen.begin(); it != gen.end(); it++) {
                     StoreInst *inst = *it;
-                    ret += '\t' + inst->getPointerOperand()->getName().str() + '\n';
+                    errs() << '\t' << inst << '\n';
                 }
-                return ret;
+            }
+            void killString() {
+                errs() << "Kill Set of BB:" + bb->getName().str() + '\n';
+                for (std::set<StoreInst *>::iterator it = kill.begin(); it != kill.end(); it++) {
+                    StoreInst *inst = *it;
+                    errs() << '\t' << inst << '\n';
+                }
             }
     };
 
@@ -39,6 +45,21 @@ namespace {
             std::set<StoreInst *> in;
             std::set<StoreInst *> out;
             BBInAndOut(BasicBlock *val) { bb = val; }
+            //Sanity Check function, used to ensure my output made sense with personal test case.
+            void inString() {
+                errs() << "In Set of BB:" << bb << '\n';
+                for (std::set<StoreInst *>::iterator it = in.begin(); it != in.end(); it++) {
+                    StoreInst *inst = *it;
+                    errs() << '\t' << inst << '\n';
+                }
+            }
+            void outString() {
+                errs() << "Out Set of BB:" << bb << '\n';
+                for (std::set<StoreInst *>::iterator it = out.begin(); it != out.end(); it++) {
+                    StoreInst *inst = *it;
+                    errs() << '\t' << inst << '\n';
+                }
+            }
     };
 
     struct NaivePass : public FunctionPass {
@@ -63,60 +84,44 @@ namespace {
                 //Set this to false for now, change if changes are made.
                 change = false;
                 
-                //Abusing the fact that I pushed the blocks in order. Doesn't include entry.
+                //Abusing the fact that I pushed the blocks in order.
                 for (BBGenAndKillSets sets : listOfSets) {
-                    if (sets.bb == &(F.getEntryBlock())) {
-                        continue;
-                    }
-                    std::set<StoreInst *> new_in;
-                    std::set<StoreInst *> new_out;
-                    
                     //First get out the in and out for this basic block.
-                    BBInAndOut myout = NULL;
-                    for (BBInAndOut out : output) {
-                        if (out.bb == sets.bb)
-                            myout = out;  
-                    }
-                    
-                    //Go through predecessors and get new In
-                    for (pred_iterator pi = pred_begin(sets.bb); pi != pred_end(sets.bb); pi++) {
-                        BasicBlock *pred = *pi;
-                        for (BBInAndOut pred_out : output) {
-                            if (pred_out.bb == pred) {
-                                for (StoreInst * inst  : pred_out.out) {
-                                    new_in.insert(inst);
+                    for (std::list<BBInAndOut>::iterator it = output.begin(); it != output.end(); it++) {
+                        if (it->bb == sets.bb) {
+                            //Go through predecessors and get new In
+                            for (pred_iterator pi = pred_begin(sets.bb); pi != pred_end(sets.bb); pi++) {
+                                BasicBlock *pred = *pi;
+                                for (std::list<BBInAndOut>::iterator list_it = output.begin(); 
+                                        list_it != output.end(); list_it++) {
+                                    BBInAndOut &pred_out = *list_it;
+                                    
+                                    if (pred_out.bb == pred) {
+                                        for (StoreInst* inst  : pred_out.out) {
+                                            it->in.insert(inst);
+                                        }
+                                    }
                                 }
                             }
+
+                            //Now get new Out from gen set union (IN - Kill)
+                            for (StoreInst *inst : sets.gen) {
+                                it->out.insert(inst);
+                            }
+                            for (StoreInst *inst : it->in) {
+                                if (sets.kill.find(inst) == sets.kill.end()) {
+                                    it->out.insert(inst);
+                                }
+                            }
+                            
+                            //Now Check for Changes TODO
+                            it->inString();
+                            it->outString();
+                            errs() << '\n';
                         }
                     }
-
-                    //Early check on ins, if they don't change, outs can't.
-                    if (new_in == myout.in) continue;
-
-
-                    //Now get new Out from gen set union (IN - Kill)
-                    for (StoreInst *inst : sets.gen) {
-                        new_out.insert(inst);
-                    }
-                    for (StoreInst *inst : myout.in) {
-                        if (sets.kill.find(inst) == sets.kill.end()) {
-                            new_out.insert(inst);
-                        }
-                    }
-                    
-                    //Now Check for Changes
-                    myout.in.swap(new_in);
-                    if (new_out != myout.out) {
-                        change = true;
-                        errs() << "Size of old" << myout.out.size() << " Size of New" << new_out.size() << '\n';
-                        myout.out.swap(new_out);
-                    }
-
                 }
             }
-
-
-
             return false;
         }
 
@@ -149,6 +154,8 @@ namespace {
                     }
                 }
             }
+            //bbSets.genString();
+            //bbSets.killString();
             return bbSets;
         }
         
