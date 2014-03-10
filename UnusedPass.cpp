@@ -22,12 +22,11 @@ namespace {
                 for (BasicBlock::iterator bbit = fit->begin(); bbit != fit->end(); bbit++) {
                     if (AllocaInst *inst = dyn_cast<AllocaInst>(bbit)) {
                         unused.insert(dyn_cast<Value>(inst));
-                        errs() << "Added to unused list: " << inst << '\n';
+                        errs() << "Variable Name: " << inst->getName() << " loc: " << inst << '\n';
                     }
                     if (StoreInst *inst = dyn_cast<StoreInst>(bbit)) {
                         Value *value = inst->getValueOperand();
                         if (dyn_cast<Constant>(value)) {
-                            unused.erase(inst->getPointerOperand());
                             continue;
                         }
                         std::queue<Instruction *> queue;
@@ -42,11 +41,6 @@ namespace {
                             }
                             queue.pop();
                         }
-                        errs() << "Store Inst Value: " << value->getName() << '\n';
-                    }
-                    if (LoadInst *inst = dyn_cast<LoadInst>(bbit)) {
-                        Value *value = inst->getPointerOperand();
-                        errs() << "Load Inst pointer: " << value->getName() << '\n';
                     }
                 }
             }
